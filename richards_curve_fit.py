@@ -26,11 +26,11 @@ if __name__ == '__main__':
     # Fit with curvet_fit
     xdata = [datetime.strptime(str(dt)[:10], '%Y-%m-%d') for dt in df.date.values]
     ydata = df.acumulado.astype('float64').values
-    x_values = xdata[:32]
-    y_values = ydata[:32]
+    x_values = xdata[:36]
+    y_values = ydata[:36]
 
     x_values_pred = x_values.copy()
-    h = 4
+    h = 20
 
     for i in range(h):
         x_values_pred.append(x_values_pred[-1] + timedelta(days=1))
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     axs[1].axvline(tp_date, ls='-', color='k', label='Turning point: {}'.format(str(tp_date)[:10]))
     fig.autofmt_xdate(rotation=45)
     axs[1].legend()
-    plt.savefig('results/{}/curve_fit_prediction_plot.png'.format(country))
+    plt.savefig('results/{}/curve_fit_prediction_plot_{}.png'.format(country,str(str(x_values[-1])[:10]).replace('-','')))
     #plt.show()
 
     # Data of model prediction

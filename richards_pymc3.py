@@ -8,6 +8,9 @@ import pymc3 as pm
 import arviz as az
 from epdata.parser import EpData
 from datetime import datetime, timedelta
+import plotly.offline as py
+import plotly.graph_objs as go
+
 pd.set_option('display.width', 320)
 pd.set_option('display.max_columns', 100)
 
@@ -37,8 +40,8 @@ if __name__ == '__main__':
     # print(df)
 
     # ========== Training the model =============
-    x_values = df.days_since_100.values[:32]
-    y_values = df.acumulado.astype('float64').values[:32]
+    x_values = df.days_since_100.values[:36]
+    y_values = df.acumulado.astype('float64').values[:36]
 
     with pm.Model() as richards_model_final:
         sigma = pm.HalfCauchy('sigma', 1, shape=1)
@@ -83,7 +86,7 @@ if __name__ == '__main__':
 
     # ========== Compute predictions =============
 
-    h = 4  # number points to prediction ahead
+    h = 20  # number points to prediction ahead
     with richards_model_final:
         # Update data so that we get predictions into the future
         x_data = np.arange(0, len(y_values) + h)
@@ -97,7 +100,7 @@ if __name__ == '__main__':
     y_min_final = np.percentile(post_pred_final['y'], 2.5, axis=0)
     y_max_final = np.percentile(post_pred_final['y'], 97.5, axis=0)
     y_fit_final = np.percentile(post_pred_final['y'], 50, axis=0)
-    dy_fit_final = trace['rate'].mean() * y_fit_final * (1 - (y_fit_final / trace['K'].mean()) ** trace['a'].mean())
+    dy_fit_final = np.percentile(trace['rate'], 50, axis=0) * y_fit_final * (1 - (y_fit_final / np.percentile(trace['K'], 50, axis=0)) ** np.percentile(trace['a'], 50, axis=0))
 
     # Plot prediction of comulative cases
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 10))
@@ -158,4 +161,50 @@ if __name__ == '__main__':
     dt_until = str(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]).replace('-', '')
     df_full[cols_selected].to_csv('results/{}/{}_data_until_{}_predictions.csv'.format(country,country, dt_until),
                                   index=False, sep=',', decimal='.')
-    print(df_full[cols_selected])
+    df_full = df_full[cols_selected]
+    print(df_full)
+
+    # Interactive plots with plotly
+
+    # Covid-19: Richards model prediction for Spain
+    date_max_plot = str(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0])
+    df = df_full.copy()
+    ymax_limit = max(df.acumulado_pred.max(), df.acumulado.max()) * 1.10
+    yref_ycoord = min(df.acumulado_pred.median(), df.acumulado.median()) * 0.6
+    fig = go.Figure(layout={'title': 'Covid-19: Richards model prediction for {}'.format(country),
+                            'xaxis_title': "Date (days)", 'yaxis_title': "Cumulative confirmed cases",
+                            'font': {'family': 'Courier', 'size': 16}})
+    fig.add_trace(go.Scatter(x=df.date, y=df.acumulado_pred,
+                             fill=None, mode='markers+lines', line_color='red', name="Predicted"))
+    fig.add_trace(go.Scatter(x=df.date, y=df.acumulado_pred_lower,
+                             fill=None, mode='lines', line_color='gray', showlegend=False))
+    fig.add_trace(go.Scatter(x=df.date, y=df.acumulado_pred_upper,
+                             fill='tonexty',  # fill area between trace0 and trace1
+                             mode='lines', line_color='gray', showlegend=False))
+    fig.add_trace(go.Scatter(x=df.date, y=df.acumulado,
+                             fill=None, mode='markers+lines', line_color='blue', name="Observed"))
+    # Line Vertical
+    fig.add_shape(dict(type="line", x0=date_max_plot, y0=0, x1=date_max_plot, y1=ymax_limit,
+                       line=dict(color="gray", width=1)))
+    fig.update_layout(annotations=[dict(x=date_max_plot, y=yref_ycoord, xref="x", text=date_max_plot, textangle=-90)])
+    fig.update_layout(yaxis_tickformat='6.0f')
+    fig.layout.template = 'plotly_white'
+    py.plot(fig, filename='results/{}/comulative_prediction_plot_{}.html'.format(country, dt_until), validate=False)
+    #fig.show()
+
+    # Plot incidence of new cases
+    ymax_limit = max(df.new_cases.max(), df.new_cases.max()) * 1.10
+    yref_ycoord = min(df.new_cases.median(), df.new_cases.median()) * 0.6
+    fig = go.Figure(layout={'title': 'Covid-19: Richards model prediction of new cases for {}'.format(country),
+                            'font': {'family': 'Courier', 'size': 16}})
+    fig.add_trace(go.Scatter(x=df.date, y=df.new_cases_pred,
+                             fill=None, mode='markers+lines', line_color='red', name="Predicted"))
+    fig.add_trace(go.Scatter(x=df.date, y=df.new_cases,
+                             fill=None, mode='markers+lines', line_color='blue', name="Observed"))
+    # Line Vertical
+    fig.add_shape(dict(type="line", x0=date_max_plot, y0=0, x1=date_max_plot, y1=ymax_limit,
+                       line=dict(color="gray", width=1)))
+    fig.update_layout(annotations=[dict(x=date_max_plot, y=yref_ycoord, xref="x", text=date_max_plot, textangle=-90)])
+    fig.update_layout(yaxis_tickformat='6.0f')
+    fig.layout.template = 'plotly_white'
+    py.plot(fig, filename='results/{}/newcases_prediction_plot_{}.html'.format(country, dt_until), validate=False)
