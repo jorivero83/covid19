@@ -16,32 +16,36 @@ pd.set_option('display.max_columns', 100)
 
 if __name__ == '__main__':
 
+    epidemic_start = 10
+    x_data_label = 'days_since_{}'.format(epidemic_start)
+
     # Loading data
-    country = 'Spain'
-    oper_file_path1 = 'data/spain_data.csv'
-    df_input = pd.read_csv(oper_file_path1, sep=';', decimal=',', error_bad_lines=False)
-    df_input = EpData().parser(df=df_input)
-
-    # Prepare data for training the model
-    df = df_input[df_input['acumulado'] > 100][['date', 'acumulado', 'new_cases']].copy()
-    df['days_since_100'] = list(np.arange(df.shape[0]))
-    df.tail()
-
-    # country = 'pe'
-    # df_input = pd.read_csv('data/pe_data.csv', sep=';', decimal=',', error_bad_lines=False, parse_dates=['Date'])
-    # df_input.columns = df_input.columns.map(lambda x: str(x).lower())
-    # df_input.index = df_input.date
-    # df_input['new_cases'] = df_input['confirmed'] - df_input['confirmed'].shift(1)
+    # country = 'Spain'
+    # oper_file_path1 = 'data/spain_data.csv'
+    # df_input = pd.read_csv(oper_file_path1, sep=';', decimal=',', error_bad_lines=False)
+    # df_input = EpData().parser(df=df_input)
     #
-    # # Prepare data for model training
-    # df = df_input[df_input['confirmed'] > 100][['date', 'confirmed', 'new_cases']].copy()
-    # df.columns = ['date', 'acumulado', 'new_cases']
-    # df['days_since_100'] = list(np.arange(df.shape[0]))
-    # print(df)
+    # # Prepare data for training the model
+    # df = df_input[df_input['acumulado'] > epidemic_start][['date', 'acumulado', 'new_cases']].copy()
+    # df[x_data_label] = list(np.arange(df.shape[0]))
+    # print(df.tail(10))
+    # ndays_limit = 41
+
+    country = 'Cuba'
+    oper_file_path1 = 'data/cuba_data.csv'
+    df_input = pd.read_csv(oper_file_path1, sep=',', decimal='.', error_bad_lines=False, parse_dates=['date'])
+    df_input.index = df_input['date']
+
+    # Prepare data for model training
+    df = df_input[df_input['confirmed'] > epidemic_start][['date', 'confirmed', 'new_cases']].copy()
+    df.columns = ['date', 'acumulado', 'new_cases']
+    df[x_data_label] = list(np.arange(df.shape[0]))
+    print(df.tail(10))
+    ndays_limit = 25
 
     # ========== Training the model =============
-    x_values = df.days_since_100.values[:36]
-    y_values = df.acumulado.astype('float64').values[:36]
+    x_values = df[x_data_label].values[:ndays_limit]
+    y_values = df.acumulado.astype('float64').values[:ndays_limit]
 
     with pm.Model() as richards_model_final:
         sigma = pm.HalfCauchy('sigma', 1, shape=1)
@@ -58,10 +62,17 @@ if __name__ == '__main__':
         mu = pm.Deterministic('mu', K * (1 + np.exp(-rate * a * (x - x0 - (np.log(a) / (rate * a))))) ** (-1 / a))
         y = pm.Normal('y', mu=mu, tau=sigma, observed=acumulado)
 
+    os.makedirs('results/{}/'.format(country), exist_ok=True)
+    with richards_model_final:
+
+        # Keep model
+        db = pm.backends.Text('results/{}/{}_model'.format(country,country))
+
         # Sample posterior
         start = pm.find_MAP()
         step = pm.NUTS()
-        trace = pm.sample(4000, tune=4000, cores=7, start=start, target_accept=.95, random_seed=1234)
+        trace = pm.sample(4000, tune=4000, cores=7, start=start, target_accept=.95,
+                          random_seed=1234, trace=db)
 
     # Fitted parameters
     f_values = (round(trace['rate'].mean(), 2), round(trace['x0'].mean(), 2),
@@ -78,7 +89,6 @@ if __name__ == '__main__':
             """.format(country, *f_values)
     print(txt)
 
-    os.makedirs('results/{}/'.format(country), exist_ok=True)
     az.plot_trace(trace, compact=True);
     plt.savefig('results/{}/trace_plot.png'.format(country))
     az.plot_posterior(trace);
@@ -86,7 +96,7 @@ if __name__ == '__main__':
 
     # ========== Compute predictions =============
 
-    h = 20  # number points to prediction ahead
+    h = 7  # number points to prediction ahead
     with richards_model_final:
         # Update data so that we get predictions into the future
         x_data = np.arange(0, len(y_values) + h)
@@ -103,15 +113,17 @@ if __name__ == '__main__':
     dy_fit_final = np.percentile(trace['rate'], 50, axis=0) * y_fit_final * (1 - (y_fit_final / np.percentile(trace['K'], 50, axis=0)) ** np.percentile(trace['a'], 50, axis=0))
 
     # Plot prediction of comulative cases
+    #ymax_limit = max(max(y_fit_final), df.acumulado.astype('float64').max()) * 1.10
+    yref_ycoord_0 = min(np.median(y_fit_final), df.acumulado.median()) * 0.6
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 10))
-    plt.plot(df.days_since_100.values, df.acumulado.astype('float64').values,
+    plt.plot(df[x_data_label].values, df.acumulado.astype('float64').values,
              'b', marker='s', ls='-', lw=1, label='Observed data')
     plt.plot(np.arange(0, post_pred_final['y'].shape[1]), y_fit_final,
              'k', marker='^', ls=':', ms=5, mew=1, label='Model prediction')
     plt.fill_between(np.arange(0, post_pred_final['y'].shape[1]), y_min_final, y_max_final, color='0.5', alpha=0.5)
-    ax.axvline(x_values[-1], ls='--', color='k', label='Day {} since 100 cases'.format(x_values[-1]))
-    plt.text(x_values[-1], 2000,
-             "{}".format(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]),
+    ax.axvline(x_values[-1], ls='--', color='k', label='Day {} since {} cases'.format(x_values[-1],epidemic_start))
+    plt.text(x_values[-1], yref_ycoord_0,
+             "{}".format(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]),
              {'color': 'k', 'fontsize': 14},
              horizontalalignment='right', verticalalignment='baseline', rotation=90, clip_on=False)
     plt.suptitle('Richard model prediction: {}'.format(country), fontsize=24)
@@ -120,22 +132,23 @@ if __name__ == '__main__':
     plt.title(
         'Growth rate: {}, Turning point: {}, \n Final epidemic size: {}, Basic reproduction number: {}'.format(
             *f_values), fontsize=14)
-    ax.set(xlabel='Days since 100 cases')
+    ax.set(xlabel='Days since {} cases'.format(epidemic_start))
     ax.set(ylabel='Cumulative confirmed cases')
     plt.legend(loc='upper left')
     plt.savefig('results/{}/cumulative_prediction_plot.png'.format(country))
 
     # Incidence of new cases prediction
+    yref_ycoord_0 = min(np.median(dy_fit_final), df.new_cases.median()) * 0.6
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 10))
-    plt.plot(df['days_since_100'], df['new_cases'], 'b', marker='s', ls='-', label='Observed data')
+    plt.plot(df[x_data_label], df['new_cases'], 'b', marker='s', ls='-', label='Observed data')
     plt.plot(np.arange(0, post_pred_final['y'].shape[1]), dy_fit_final, 'k', marker='^', ls=':', ms=5, mew=1,
              label='Predicted incidence of new cases')
-    ax.axvline(x_values[-1], ls='--', color='k', label='Day {} since 100 cases'.format(x_values[-1]))
-    plt.text(x_values[-1], 2000,
-             "{}".format(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]),
+    ax.axvline(x_values[-1], ls='--', color='k', label='Day {} since {} cases'.format(x_values[-1],epidemic_start))
+    plt.text(x_values[-1], yref_ycoord_0,
+             "{}".format(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]),
              {'color': 'k', 'fontsize': 14},
              horizontalalignment='right', verticalalignment='baseline', rotation=90, clip_on=False)
-    plt.xlabel('Days since 100 cases')
+    plt.xlabel('Days since {} cases'.format(epidemic_start))
     plt.ylabel('Incidence of new cases')
     plt.suptitle('Richard model prediction of incidence: {}'.format(country), fontsize=24)
     f_values = (round(trace['rate'].mean(), 2), round(trace['x0'].mean(), 2),
@@ -148,18 +161,18 @@ if __name__ == '__main__':
 
     # Save data with predictions
     df_pred = pd.DataFrame(index=pd.date_range(start=df.index[0], freq='D', periods=len(y_fit_final)))
-    df_pred['days_since_100'] = np.arange(0, post_pred_final['y'].shape[1])
+    df_pred[x_data_label] = np.arange(0, post_pred_final['y'].shape[1])
     df_pred['acumulado_pred'] = y_fit_final
     df_pred['acumulado_pred_lower'] = y_min_final
     df_pred['acumulado_pred_upper'] = y_max_final
     df_pred['new_cases_pred'] = dy_fit_final
-    df_full = pd.merge(df_pred, df, on='days_since_100', how='left')
+    df_full = pd.merge(df_pred, df, on=x_data_label, how='left')
     df_full.index = df_pred.index
     df_full['date'] = df_pred.index
-    cols_selected = ['date', 'days_since_100', 'new_cases', 'acumulado', 'acumulado_pred',
+    cols_selected = ['date', x_data_label, 'new_cases', 'acumulado', 'acumulado_pred',
                      'acumulado_pred_lower', 'acumulado_pred_upper', 'new_cases_pred']
-    dt_until = str(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]).replace('-', '')
-    df_full[cols_selected].to_csv('results/{}/{}_data_until_{}_predictions.csv'.format(country,country, dt_until),
+    dt_until = str(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]).replace('-', '')
+    df_full[cols_selected].to_csv('results/{}/{}_data_until_{}_predictions.csv'.format(country, country, dt_until),
                                   index=False, sep=',', decimal='.')
     df_full = df_full[cols_selected]
     print(df_full)
@@ -167,7 +180,7 @@ if __name__ == '__main__':
     # Interactive plots with plotly
 
     # Covid-19: Richards model prediction for Spain
-    date_max_plot = str(df[df.days_since_100 == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0])
+    date_max_plot = str(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0])
     df = df_full.copy()
     ymax_limit = max(df.acumulado_pred.max(), df.acumulado.max()) * 1.10
     yref_ycoord = min(df.acumulado_pred.median(), df.acumulado.median()) * 0.6
