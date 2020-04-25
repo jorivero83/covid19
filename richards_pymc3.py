@@ -29,7 +29,7 @@ if __name__ == '__main__':
     # df = df_input[df_input['acumulado'] > epidemic_start][['date', 'acumulado', 'new_cases']].copy()
     # df[x_data_label] = list(np.arange(df.shape[0]))
     # print(df.tail(10))
-    # ndays_limit = 41
+    # ndays_limit = 52
 
     country = 'Cuba'
     oper_file_path1 = 'data/cuba_data.csv'
@@ -41,12 +41,12 @@ if __name__ == '__main__':
     df.columns = ['date', 'acumulado', 'new_cases']
     df[x_data_label] = list(np.arange(df.shape[0]))
     print(df.tail(10))
-    ndays_limit = 25
+    ndays_limit = 31
 
     # ========== Training the model =============
     x_values = df[x_data_label].values[:ndays_limit]
     y_values = df.acumulado.astype('float64').values[:ndays_limit]
-
+    dt_until = str(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]).replace('-', '')
     with pm.Model() as richards_model_final:
         sigma = pm.HalfCauchy('sigma', 1, shape=1)
         K = pm.Uniform('K', 100, 1000000, testval=5000)  # carrying capacity
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     with richards_model_final:
 
         # Keep model
-        db = pm.backends.Text('results/{}/{}_model'.format(country,country))
+        db = pm.backends.Text('results/{}/{}_model_{}'.format(country,country,dt_until))
 
         # Sample posterior
         start = pm.find_MAP()
@@ -171,7 +171,6 @@ if __name__ == '__main__':
     df_full['date'] = df_pred.index
     cols_selected = ['date', x_data_label, 'new_cases', 'acumulado', 'acumulado_pred',
                      'acumulado_pred_lower', 'acumulado_pred_upper', 'new_cases_pred']
-    dt_until = str(df[df[x_data_label] == x_values[-1]].date.map(lambda x: str(x)[:10]).values[0]).replace('-', '')
     df_full[cols_selected].to_csv('results/{}/{}_data_until_{}_predictions.csv'.format(country, country, dt_until),
                                   index=False, sep=',', decimal='.')
     df_full = df_full[cols_selected]

@@ -26,8 +26,8 @@ if __name__ == '__main__':
     # Fit with curvet_fit
     xdata = [datetime.strptime(str(dt)[:10], '%Y-%m-%d') for dt in df.date.values]
     ydata = df.acumulado.astype('float64').values
-    x_values = xdata[:36]
-    y_values = ydata[:36]
+    x_values = xdata[:41]
+    y_values = ydata[:41]
 
     x_values_pred = x_values.copy()
     h = 20
