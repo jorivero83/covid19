@@ -26,9 +26,7 @@ class RichardsModel(BayesianModel):
         the PyMC3 model
         """
         model_input = theano.shared(np.zeros([self.num_training_samples, self.num_pred]))
-
         model_output = theano.shared(np.zeros(self.num_training_samples, dtype='int'))
-
         model_cats = theano.shared(np.zeros(self.num_training_samples, dtype='int'))
 
         self.shared_vars = {
