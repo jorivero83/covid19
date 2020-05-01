@@ -16,32 +16,32 @@ pd.set_option('display.max_columns', 100)
 
 if __name__ == '__main__':
 
-    epidemic_start = 10
+    epidemic_start = 100
     x_data_label = 'days_since_{}'.format(epidemic_start)
 
     # Loading data
-    # country = 'Spain'
-    # oper_file_path1 = 'data/spain_data.csv'
-    # df_input = pd.read_csv(oper_file_path1, sep=';', decimal=',', error_bad_lines=False)
-    # df_input = EpData().parser(df=df_input)
-    #
-    # # Prepare data for training the model
-    # df = df_input[df_input['acumulado'] > epidemic_start][['date', 'acumulado', 'new_cases']].copy()
-    # df[x_data_label] = list(np.arange(df.shape[0]))
-    # print(df.tail(10))
-    # ndays_limit = 52
+    country = 'Spain'
+    oper_file_path1 = 'data/spain_data.csv'
+    df_input = pd.read_csv(oper_file_path1, sep=';', decimal=',', error_bad_lines=False)
+    df_input = EpData().parser(df=df_input)
 
-    country = 'Cuba'
-    oper_file_path1 = 'data/cuba_data.csv'
-    df_input = pd.read_csv(oper_file_path1, sep=',', decimal='.', error_bad_lines=False, parse_dates=['date'])
-    df_input.index = df_input['date']
-
-    # Prepare data for model training
-    df = df_input[df_input['confirmed'] > epidemic_start][['date', 'confirmed', 'new_cases']].copy()
-    df.columns = ['date', 'acumulado', 'new_cases']
+    # Prepare data for training the model
+    df = df_input[df_input['acumulado'] > epidemic_start][['date', 'acumulado', 'new_cases']].copy()
     df[x_data_label] = list(np.arange(df.shape[0]))
     print(df.tail(10))
-    ndays_limit = 31
+    ndays_limit = 58
+
+    # country = 'Cuba'
+    # oper_file_path1 = 'data/cuba_data.csv'
+    # df_input = pd.read_csv(oper_file_path1, sep=',', decimal='.', error_bad_lines=False, parse_dates=['date'])
+    # df_input.index = df_input['date']
+    #
+    # # Prepare data for model training
+    # df = df_input[df_input['confirmed'] > epidemic_start][['date', 'confirmed', 'new_cases']].copy()
+    # df.columns = ['date', 'acumulado', 'new_cases']
+    # df[x_data_label] = list(np.arange(df.shape[0]))
+    # print(df.tail(10))
+    # ndays_limit = 31
 
     # ========== Training the model =============
     x_values = df[x_data_label].values[:ndays_limit]
