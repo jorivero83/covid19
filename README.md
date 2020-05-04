@@ -4,8 +4,8 @@
 The ongoing epidemic of a novel coronavirus illness (**COVID-19**) began in Hubei Province, China,
 in December 2019 and continues to cause infections in multiple countries, that was 
 confirmed as pandemic by World Health Organization since March 11, 2020. The **COVID-19** is 
-affecting 210 countries and territories around the world. As of May 02, 2020, there have been
-**3,469,906** cumulative cases, including **243,937** deaths, and **1,113,864** recovered, 
+affecting 210 countries and territories around the world. As of May 04, 2020, there have been
+**3,641,005** cumulative cases, including **251,930** deaths, and **1,192,926** recovered, 
 reported globally.  
 
 To control the pandemic, several countries governments has enacted a range of social distancing 
