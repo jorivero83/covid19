@@ -1,11 +1,12 @@
 # Prediction of covid-19 with Richards model
+*Last update: May 15, 2020*
 
 ## Introduction
 The ongoing epidemic of a novel coronavirus illness (**COVID-19**) began in Hubei Province, China,
 in December 2019 and continues to cause infections in multiple countries, that was 
 confirmed as pandemic by World Health Organization since March 11, 2020. The **COVID-19** is 
-affecting 210 countries and territories around the world. As of May 13, 2020, there have been
-**4,342,808** cumulative cases, including **292,899** deaths, and **1,602,687** recovered, 
+affecting 210 countries and territories around the world. As of May 15, 2020, there have been
+**4,520,315** cumulative cases, including **303,038** deaths, and **1,700,174** recovered, 
 reported globally.  
 
 To control the pandemic, several countries governments has enacted a range of social distancing 
